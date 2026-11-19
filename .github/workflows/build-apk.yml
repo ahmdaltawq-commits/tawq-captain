@@ -58,6 +58,8 @@ jobs:
           }
           EOF
 
+          keytool -genkeypair -v -keystore tawq-release.jks -alias tawq -keyalg RSA -keysize 2048 -validity 10000 -storepass tawq123456 -keypass tawq123456 -dname "CN=Al Tawq, OU=Captain, O=Al Tawq, L=Baghdad, S=Baghdad, C=IQ"
+
           cat << 'EOF' > app/build.gradle
           plugins {
             id 'com.android.application'
@@ -70,12 +72,16 @@ jobs:
               applicationId 'com.altawq.captain'
               minSdk 23
               targetSdk 34
-              versionCode 2
-              versionName '1.0.1'
+              versionCode 3
+              versionName '1.0.2'
             }
 
             signingConfigs {
-              debug {
+              release {
+                storeFile file('../tawq-release.jks')
+                storePassword 'tawq123456'
+                keyAlias 'tawq'
+                keyPassword 'tawq123456'
                 enableV1Signing true
                 enableV2Signing true
               }
@@ -84,10 +90,11 @@ jobs:
             buildTypes {
               release {
                 minifyEnabled false
+                signingConfig signingConfigs.release
               }
               debug {
                 minifyEnabled false
-                signingConfig signingConfigs.debug
+                signingConfig signingConfigs.release
               }
             }
 
