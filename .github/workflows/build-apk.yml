@@ -22,7 +22,6 @@ jobs:
       - name: Install Android SDK packages
         run: |
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name "sdkmanager" -type f | head -n 1)
-          echo "Using sdkmanager: $SDKMANAGER"
           yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
           yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
@@ -58,8 +57,6 @@ jobs:
           }
           EOF
 
-          keytool -genkeypair -v -keystore tawq-release.jks -alias tawq -keyalg RSA -keysize 2048 -validity 10000 -storepass tawq123456 -keypass tawq123456 -dname "CN=Al Tawq, OU=Captain, O=Al Tawq, L=Baghdad, S=Baghdad, C=IQ"
-
           cat << 'EOF' > app/build.gradle
           plugins {
             id 'com.android.application'
@@ -72,29 +69,14 @@ jobs:
               applicationId 'com.altawq.captain'
               minSdk 23
               targetSdk 34
-              versionCode 3
-              versionName '1.0.2'
-            }
-
-            signingConfigs {
-              release {
-                storeFile file('../tawq-release.jks')
-                storePassword 'tawq123456'
-                keyAlias 'tawq'
-                keyPassword 'tawq123456'
-                enableV1Signing true
-                enableV2Signing true
-              }
+              versionCode 10
+              versionName '1.1.0'
             }
 
             buildTypes {
               release {
                 minifyEnabled false
-                signingConfig signingConfigs.release
-              }
-              debug {
-                minifyEnabled false
-                signingConfig signingConfigs.release
+                shrinkResources false
               }
             }
 
@@ -129,12 +111,10 @@ jobs:
             <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
             <application
               android:label="الطوق"
-              android:usesCleartextTraffic="false"
               android:theme="@style/Theme.AppCompat.NoActionBar">
               <activity
                 android:name=".MainActivity"
-                android:exported="true"
-                android:configChanges="orientation|screenSize|keyboardHidden">
+                android:exported="true">
                 <intent-filter>
                   <action android:name="android.intent.action.MAIN" />
                   <category android:name="android.intent.category.LAUNCHER" />
@@ -226,14 +206,17 @@ jobs:
           }
           EOF
 
-      - name: Generate Gradle Wrapper
-        run: gradle wrapper --gradle-version 8.7 --distribution-type bin
-
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+      - name: Build, Align, Sign and Verify APK
+        run: |
+          gradle wrapper --gradle-version 8.7 --distribution-type bin
+          ./gradlew assembleRelease --no-daemon
+          keytool -genkeypair -v -keystore tawq.jks -alias tawq -keyalg RSA -keysize 2048 -validity 10000 -storepass tawq123456 -keypass tawq123456 -dname "CN=Al Tawq, OU=Captain, O=Al Tawq, L=Baghdad, S=Baghdad, C=IQ"
+          "$ANDROID_HOME/build-tools/34.0.0/zipalign" -p -f 4 app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/aligned.apk
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" sign --ks tawq.jks --ks-key-alias tawq --ks-pass pass:tawq123456 --key-pass pass:tawq123456 --v1-signing-enabled true --v2-signing-enabled true --out app/build/outputs/apk/release/tawq-captain.apk app/build/outputs/apk/release/aligned.apk
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose app/build/outputs/apk/release/tawq-captain.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: tawq-captain-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/release/tawq-captain.apk
